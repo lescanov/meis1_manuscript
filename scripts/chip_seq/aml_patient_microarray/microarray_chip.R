@@ -32,6 +32,9 @@ patient_info <- pData(phenoData(histone))
 patient_info <- patient_info %>%
   dplyr::select(title, characteristics_ch1.5, characteristics_ch2.8, characteristics_ch2.9)
 
+#cleaning title 
+patient_info$title <- gsub(" H3K9ac", "", patient_info$title)
+
 #importing chiparray.txt
 chip_array <- read.delim("chiparray.txt", header = TRUE)
 
@@ -235,70 +238,125 @@ kpHeatmap(kp, data = Patient_19_H3K9ac, r0 = 0.95, r1 = 0.98, y = Patient_19_H3K
 microarray_dataset <- stemcell$`GSE38865-GPL6884_series_matrix.txt.gz`
 rna_microarray <- microarray_dataset@assayData[["exprs"]]
 
+#sample information for rna microarray
+rna_microarray_sample_data <- pData(phenoData(microarray_dataset))
+rna_microarray_sample_data <- rna_microarray_sample_data %>%
+  dplyr::arrange(title, geo_accession)
+
+#cleaning title in rna_microarray_sample_data 
+rna_microarray_sample_data$title <- gsub("AML ", "", rna_microarray_sample_data$title)
+
+#creating a df that converts terms for patients
+#this is spaghetti code, will have to clean this up
+patient_ids <- rna_microarray_sample_data %>%
+  dplyr::select(title, geo_accession)
+
+#get rid of cd34+ samples here
+patient_ids <- patient_ids[1:17, ]
+
+#sorting patients to match row order and adding chip ids to rna ids
+temp_var <- patient_info %>%
+  dplyr::filter(title %in% patient_ids$title) %>%
+  dplyr::arrange(match(title, patient_ids$title)) %>%
+  rownames_to_column(var = "sample_id") %>%
+  dplyr::select(sample_id)
+
+#combining both to make dictionary
+patient_ids <- cbind(patient_ids, temp_var)
+
+#changing colnames
+colnames(patient_ids) <- c("patient", "rna", "chip")
+
+#standardizing input of microarray
+for(i in seq(nrow(rna_microarray))){
+  rna_microarray[i,] <- scale(rna_microarray[i,])
+}
+
+#saving as dataframe and converting rownames to colname ID
+rna_microarray <- as.data.frame(rna_microarray)
+rna_microarray <- rownames_to_column(rna_microarray, var = "ID")
+
 #loading annotation table taken from:
 #https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GPL6884
 #I trimmed off the extrenuous rows on top and saved as rna_microarray_annotation.csv in repo
+rna_microarray_annotation <- read.csv("rna_microarray_annotation.csv", header = TRUE)
 
+#creating a list of ETS factors 
+ets <- c("CREB1", "ELF1",  "ELF2",  "ELF3",  "ELF4",  "ELK1",  "ELK3",  "ELK4",  "ERG",   "ETS1",  "ETS2", 
+         "ETV3",  "ETV5",  "ETV6",  "FLI1",  "GABPA", "MYB",   "SP3",   "SPI1",  "YY1",   "YY2" )
 
-#### CD34+ donors ####
-#Starting with H3K9ac
-kp <- plotKaryotype(zoom = MEIS1_E2_region, plot.params = pp, genome = "hg18")
-kpAddBaseNumbers(kp, tick.dist = 1000, minor.tick.dist = 200,
-                 add.units = TRUE, digits = 6)
-kpPlotGenes(kp, data=genes_data, r0=0, r1=0.05, gene.name.cex = 0.5, 
-            avoid.overlapping = TRUE, cex = 0.5)
-plotbigwig(CD34_normal_control_1_H3K9ac, "control 1", 0.1, 0.2)
-plotbigwig(CD34_normal_control_3_H3K9ac, "control 3", 0.25, 0.35)
-plotbigwig(CD34_normal_control_4_H3K9ac, "control 4", 0.4, 0.5)
-plotbigwig(CD34_normal_control_5_H3K9ac, "control 5", 0.55, 0.65)
-plotbigwig(CD34_normal_control_7_H3K9ac, "control 7", 0.7, 0.8)
+#extracting probes that correspond only to ets factors
+ets_microarray_annotation <- rna_microarray_annotation %>%
+  dplyr::filter(Symbol %in% ets)
 
-#H3K27me3
-kp <- plotKaryotype(zoom = MEIS1_E2_region, plot.params = pp, genome = "hg18")
-kpAddBaseNumbers(kp, tick.dist = 1000, minor.tick.dist = 200,
-                 add.units = TRUE, digits = 6)
-kpPlotGenes(kp, data=genes_data, r0=0, r1=0.05, gene.name.cex = 0.5, 
-            avoid.overlapping = TRUE, cex = 0.5)
-plotbigwig(CD34_normal_control_1_H3K27me3, "control 1", 0.1, 0.2)
-plotbigwig(CD34_normal_control_3_H3K27me3, "control 3", 0.25, 0.35)
-plotbigwig(CD34_normal_control_4_H3K27me3, "control 4", 0.4, 0.5)
-plotbigwig(CD34_normal_control_5_H3K27me3, "control 5", 0.55, 0.65)
-plotbigwig(CD34_normal_control_7_H3K27me3, "control 7", 0.7, 0.8)
+#now extracting ets factors from rna_microarray
+ets_microarray <- rna_microarray %>%
+  dplyr::filter(ID %in% ets_microarray_annotation$ID) %>%
+  dplyr::arrange(match(ID, ets_microarray_annotation$ID)) %>%
+  mutate(symbol = ets_microarray_annotation$Symbol)
 
-#heatmap example
-plotheatmap <- function(bed_file, patient_name, ra, rb, value){
-  kp <- kpHeatmap(kp, data=bed_file, r0=ra, r1=rb, ymax = 1 , ymin = -1, y = bed_file[[value]])
-  kpAxis(kp, ymin=-1, ymax=1, r0=ra, r1=rb, cex = 0.5)
-  kpAddLabels(kp, labels = paste(patient_name), r0=ra, r1=rb, label.margin = 0.07, cex = 0.5)
-}
+#Now to correlate ets factor expression with h3k9me3 expression
+#first must find the genomic region of chromosome: 66544400 - 66546800 of chr2
+chr2_e2 <- chip_annotation %>%
+  dplyr::filter(CHROMOSOME %in% "chr2", RANGE_START > 66544400 , RANGE_END < 66546800)
 
-#importing bed files 
-bed_import <- function(file_name){
-  import(con =paste("/Users/suika-san/Dropbox/miR-210_project/R_projects/GSE38865/", file_name, sep = ""),
-         format = "bed", 
-         genome = "hg18", 
-         sep = c("\t"))
-}
-bed_list <- as.list(c("CD34_normal_control_1_H3K27me3.bed", 
-                      "CD34_normal_control_3_H3K27me3.bed",
-                      "CD34_normal_control_4_H3K27me3.bed",
-                      "CD34_normal_control_5_H3K27me3.bed",
-                      "CD34_normal_control_7_H3K27me3.bed"))
+#fetching chip microarray data corresponding to this region
+ch2_e2_chip <- MEIS1_chip %>%
+  dplyr::filter(ID_REF %in% chr2_e2$ID)
 
-bed_test <- lapply(bed_list, bed_import)
-names(bed_test) <- bed_list
-list2env(bed_test, .GlobalEnv)
+#selecting patient samples
+#first convert list GSM_names to string
+chip_sample_ids <- unlist(GSM_names)
 
-#This didn't work out as planned
-#Can't manipulate bed files
-kp <- plotKaryotype(zoom = MEIS1_E2_region, plot.params = pp, genome = "hg18")
-kpAddBaseNumbers(kp, tick.dist = 1000, minor.tick.dist = 200,
-                 add.units = TRUE, digits = 6)
-kpPlotGenes(kp, data=genes_data, r0=0, r1=0.05, gene.name.cex = 0.5, 
-            avoid.overlapping = TRUE, cex = 0.5)
-plotheatmap(CD34_normal_control_1_H3K27me3.bed, "control 1", 0.1, 0.2)
-plotheatmap(CD34_normal_control_3_H3K27me3.bed, "control 3", 0.25, 0.35)
-plotheatmap(CD34_normal_control_4_H3K27me3.bed, "control 4", 0.4, 0.5)
-plotheatmap(CD34_normal_control_5_H3K27me3.bed, "control 5", 0.55, 0.65)
-plotheatmap(CD34_normal_control_7_H3K27me3.bed, "control 7", 0.7, 0.8)
+patient_e2_chip <- ch2_e2_chip %>%
+  dplyr::select(patient_ids$chip)
 
+#getting mean signal intensity across this region of genome
+mean_signal_intensity <- sapply(patient_e2_chip, FUN = mean)
+
+#correlating with FLI1
+#have to find what sample ids correspond to which patient
+
+rna_and_chip <- intersect(colnames(ets_microarray), patient_ids)
+
+fli1 <- ets_microarray %>%
+  dplyr::filter(symbol %in% "FLI1") %>%
+  dplyr::select(patient_ids$rna)
+
+fli1 <- as.numeric(fli1)
+
+combined_df <- data.frame(
+  chip = mean_signal_intensity,
+  rna = fli1
+)
+
+#plotting correlation
+#looks like there is an outlier here where chip  = 1.5
+#chip sample is GSM950962
+library(ggpubr)
+ggscatter(
+  combined_df, 
+  x = "chip", 
+  y = "rna", 
+  cor.method = "spearman", 
+  alternative = "two.sided", 
+  conf.int = TRUE,
+  add = "reg.line", 
+  cor.coef = TRUE, 
+  ggtheme = theme_pubr()
+)
+
+#removing outlier
+combined_df_no_outlier <- combined_df[rownames(combined_df)!="GSM950962",]
+
+ggscatter(
+  combined_df_no_outlier, 
+  x = "chip", 
+  y = "rna", 
+  cor.method = "spearman", 
+  alternative = "two.sided", 
+  conf.int = TRUE,
+  add = "reg.line", 
+  cor.coef = TRUE, 
+  ggtheme = theme_pubr()
+)
