@@ -9,7 +9,7 @@
 
 #According to paper, peaks were called against input controll using HOMER.
 #bed files with peaks are uploaded in supplemental info of geo dataset, will extract with GEOquery
-#bed will be converted to bedgraph and then into bigwig on bash
+#called peaks for transcription factors as bed, broad histone peaks will be plotted as bigwig
 
 library(GEOquery)
 library(tidyverse)
@@ -31,7 +31,13 @@ chip <- getGEOSuppFiles(
   makeDirectory = FALSE
 )
 
-#### Importing bed files as table, cleaning up input, exporting as proper bed ####
+#### Cleaning bed files and exporting as bedGraph ####
+#the problem with the bed files is that they have 40 rows of extra info that is not needed
+#they also have extra columns pertaining to statistics in the homer peak call
+#furthermore, these are no shorted by chr, chromStart
+#must clean these bed files before they can be plotted
+#will save as bedGraph so that score is saved as numeric
+
 #creating a function to read in bed files
 read_in_bed <- function(bed_file){
   bed <- read.table(
@@ -41,17 +47,23 @@ read_in_bed <- function(bed_file){
     quote = "", 
     sep = "\t"
   )
-
 }
 
+#in bash unzipped files
+
+#creating a list of bed files obtained from GEOquery
 bed_list <- as.list(c("GSE117864_CTCF_peaks.bed", "GSE117864_ELF1_peaks.bed", "GSE117864_ERG_peaks.bed", "GSE117864_FLI1_peaks.bed", 
                          "GSE117864_H3K27ac_0uM_EPZ_peaks.bed", "GSE117864_H3K79me3_0uM_EPZ_peaks.bed", 
                          "GSE117864_MYB_peaks.bed", "GSE117864_SPI1_peaks.bed", "GSE117864_THP1_H3K27ac_peaks.bed", 
                          "GSE117864_THP1_H3K4me1_peaks.bed", "GSE117864_THP1_H3K4me3_peaks.bed", "GSE117864_THP1_H3K79me2_peaks.bed"))
+
+#creating a list of names, used to name dataframes during export as bedGraph
 bed_names <- as.list(c("ctcf", "elf1", "erg", "fli1", "h3k27ac", "h3k79me3", "myb", "spi1", "h3k27ac_thp1", "h3k4me1_thp1", "h3kme3_thp1", "h3k79me_thp1"))
 
+#getting a list of imported bed files as table
 test <- lapply(bed_list, read_in_bed)
 
+#editing tables to fit proper bed format of chr, chrstart, chrend, score
 for(i in seq_along(test)){
   tmp <- test[[i]]
   tmp <- tmp %>%
@@ -61,80 +73,37 @@ for(i in seq_along(test)){
     dplyr::arrange(chr, chromStart)
   test[[i]] <- tmp
 }
+
+#renaming elements of list containing pre-bedgraph files
 names(test) <- bed_names
 list2env(test, .GlobalEnv)
 
-#exporting as bigwig
-load_bigwig_from_input <- function(name){
-  
-  write.table(name, 
-              file = paste(name, ".bed", sep = ""), 
-              sep = "\t", 
-              row.names = FALSE, 
-              col.names = FALSE, 
-              quote = FALSE)
-  
-  test <- import(paste(wdir, "/", name, ".bed", sep = ""), 
-                 format = "bedGraph", 
-                 genome = "hg19", 
-                 sep = c("\t"))
-  
-  export.bw(object=test, 
-            con= paste(wdir, "/", name, ".bw", sep =""), 
-            format = "bw")
-  
-  BigWigFile(paste(name, ".bw", sep = ""))
-  
-}
-
-lapply(names, load_bigwig_from_input)
-
-
-### test
-write.table(fli1, 
-            file = "fli1.bed", 
-            sep = "\t", 
-            row.names = FALSE, 
-            col.names = FALSE, 
-            quote = FALSE)
-
-test <- import("fli1.bed", 
-               format = "bedGraph", 
-               genome = "hg19", 
-               sep = c("\t"))
-
-export.bw(object=test, 
-          con= paste(wdir, "/fli1.bw", sep =""), 
-          format = "bw")
-fli1_bw <- BigWigFile("fli1.bw")
-fli1_bw <- import.bw(
-  con = paste(wdir, "/fli1.bw", sep = ""), 
-  format = "bw"
+#exporting bed
+#i hate this but it's almost 1am and i can't get to automate this, just have to brute force it
+#probably better to do it in bash
+export.bedGraph(
+  h3k79me_thp1, 
+  con = paste(wdir,"/h3k79me_thp1.bedgraph", sep = ""),
+  format = "bedGraph"
 )
-#convert bed files to bigwig files on bash
-#store bigwig files in folder called bigwig
-bigwig_dir <- paste(wdir, "/bigwig/", sep = "")
 
-#importing bigwig files from folder bigwig
-bigwig_list <- as.list(c("CTCF_peaks.bw", "ELF1_peaks.bw", "ERG_peaks.bw", "FLI1_peaks.bw", 
-                         "H3K27ac_0uM_EPZ_peaks.bw", "H3K79me3_0uM_EPZ_peaks.bw", 
-                         "MYB_peaks.bw", "SPI1_peaks.bw", "THP1_H3K27ac_peaks.bw", 
-                         "THP1_H3K4me1_peaks.bw", "THP1_H3K4me3_peaks.bw", "THP1_H3K79me2_peaks.bw"))
-empty_list <- list()
-for (i in seq_along(bigwig_list)){
-  empty_list[[i]] <- BigWigFile(paste(bigwig_dir, bigwig_list[[i]], sep = ""))
-}
-names(empty_list) <- bigwig_list
-list2env(empty_list, .GlobalEnv)
+#manually importing each of the files...
+h3k79me3_thp1_bedgraph <- import.bedGraph(
+  con = paste(wdir, "/h3k79me_thp1.bedgraph" ,sep =""), 
+  genome = "hg19", 
+  format = "bedGraph"
+)
 
-#plotting bigwig files with karyoploteR 
-#will plot SEM 
+#### Plotting called peaks for SEM
+#Have called peaks for the following:
+# CTCF, ELF1, ERG, FLI1, MYB, SPI1
+# Will plot DMSO treated H3k27ac and H3k79me3 on top of this
 
 #first defining E2 enhancer region
-MEIS1_E2_region <- toGRanges("chr2:66662532-66799891", genome = "hg19")
+MEIS1_E2_region <- toGRanges("chr2:66600000-66799891", genome = "hg19")
 #E2 around: chr2:66669878-66675877
 #whole meis1 chr2:66662532-66799891"
-#defiing plot paramete
+#defiing plot parameters
 pp <- getDefaultPlotParams(plot.type=1)
 pp$leftmargin <- 0.15
 pp$topmargin <- 15
@@ -144,17 +113,6 @@ pp$data1inmargin <- 10
 pp$max <- 10
 
 #This function serves as a preliminary troubleshooting tool
-plotbigwig <- function(chip_file, patient_name, ra, rb){
-  kp <- kpPlotBigWig(kp, data=chip_file, r0=ra, r1=rb, ymax = "visible.region" , ymin = 0)
-  computed.ymax <- kp$latest.plot$computed.values$ymax
-  computed.ymin <- kp$latest.plot$computed.values$ymin
-  kpAxis(kp, ymin=computed.ymin, ymax=computed.ymax, r0=ra, r1=rb, cex = 0.5)
-  kpAddLabels(kp, labels = paste(patient_name), r0=ra, r1=rb, label.margin = 0.07, cex = 0.5)
-}
-
-#plotting bigwig file
-test <- BigWigFile("fli1_new.bw")
-
 kp <- plotKaryotype(zoom = MEIS1_E2_region, plot.params = pp, genome = "hg19")
 genes_data <- makeGenesDataFromTxDb(TxDb.Hsapiens.UCSC.hg19.knownGene,
                                     karyoplot=kp,
@@ -164,17 +122,20 @@ genes_data <- addGeneNames(genes_data)
 genes_data <- mergeTranscripts(genes_data)
 kpAddBaseNumbers(kp, tick.dist = 1000, minor.tick.dist = 200,
                  add.units = TRUE, digits = 6)
-kpPlotGenes(kp, data=genes_data, r0=0, r1=0.05, gene.name.cex = 0.5, 
+kpPlotGenes(kp, data=genes_data, r0=0, r1=0.1, gene.name.cex = 0.5, 
             avoid.overlapping = TRUE, cex = 0.5)
-kp <- kpPlotRegions(kp, data = fli1_bw, r0 = 0.3, r1 = 0.4)
-kp <- kpPlotCoverage(kp, data = fli1_bw, r0 = 0.2, r1 = 0.3)
-kp <- kpLines(kp, data = f, ymin = 0, ymax = "visible,region")
-kp <- kpPlotBigWig(kp, data = test, r0 = 0.2, r1 = 0.3, ymin = 0, ymax = "visible.region")
 
-plotbigwig(ctcf, 0.1, 0.15, "SPI1")
-
-fli1_bw <- import.bw(
-  "fli1_new.bw", 
-  format = "bw"
-)
+plotkpregions <- function(bedgraph_file, chr_label, a, b){
+  kp <- kpPlotRegions(kp, data = bedgraph_file, r0 = a, r1 = b)
+  kpAddLabels(kp, labels = chr_label, r0 = a, r1 = b, label.margin = 0.05, cex = 0.5)
+}
+#no binding from ELF1, MYB
+plotkpregions(ctcf_bedgraph, "CTCF", 0.1, 0.15)
+plotkpregions(fli1_bedgraph, "FLI1", 0.2, 0.25)
+plotkpregions(erg_bedgraph, "ERG", 0.3, 0.35)
+plotkpregions(spi1_bedgraph, "SPI", 0.4, 0.45)
+plotkpregions(elf1_bedgraph, "ELF1", 0.5, 0.55)
+plotkpregions(myb_bedgraph, "MYB", 0.6, 0.65)
+plotkpregions(h3k27ac_bedgraph, "H3K27ac", 0.7, 0.8)
+plotkpregions(h3k79me3_bedgraph, "H3K79me3", 0.85, 0.95)
 
