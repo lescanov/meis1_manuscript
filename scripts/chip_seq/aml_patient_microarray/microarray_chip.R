@@ -17,8 +17,8 @@ stemcell <- getGEO("GSE38865",
 #This creates multiple txt files that contain info for the experiment series
 #specifically contains patient info and expression data
 #based on these txt files, you can retrieve patient data with expression values
-#I have manually edited on the txt files to contain expression values segregated by asscension code
-#this is saved as chiparray.txt
+#I have manually edited the txt files to contain expression values segregated by asscension code
+#this is saved as chiparray.txt (as seen in repo)
 
 #Default of getGEO is to save as a gse matrix
 #to extract elements of matrix such as patient data, experiment set up, values, must use Biobase
@@ -51,43 +51,24 @@ MEIS1 <- chip_annotation %>%
 MEIS1_chip <- chip_array %>%
   dplyr::filter(ID_REF %in% MEIS1$ID)
 
-#### THE FOLLOWING CODE WAS TEST TO CONVERT TXT INTO BIGWIG AND IT PASSED ####
+#standardizing score for MEIS1
+#temporary saving ascension ids as rownames
+tmp <- MEIS1_chip[1]
 
-#Will have to follow this format if I want to convert txt to bed:
-#https://genome.ucsc.edu/FAQ/FAQformat.html#format1
+#removing names so can standardize
+MEIS1_chip <- MEIS1_chip[-1]
 
-#test_bed <- data.frame(
-#  chrom = as.vector(MEIS1$CHROMOSOME), 
-#  chromStart = as.numeric(MEIS1$RANGE_START), 
-#  chromEnd = as.numeric(MEIS1$RANGE_END),
-#  name = MEIS1$GENE_SYMBOL,
-#  score = as.numeric(MEIS1_chip$GSM950948)
-#)
+#getting number of rows
+nrow <- seq(nrow(MEIS1_chip))
 
-
-#exporting bed file
-#write.table(test_bed, "test.bed", sep = "\t", row.names = FALSE, col.names = FALSE, quote = FALSE)
-
-#trying r to do this
-#bed_loaded <- import(con = "/Users/suika-san/Dropbox/miR-210_project/R_projects/GSE38865/test.bed", 
-#                     format = "bed", 
-#                     genome = "hg18", 
-#                     sep = c("\t"))
-
-#must be exported as bigwig, wig needs span to be consistent across all genome attributes
-#export.bw(object=bed_loaded, 
-#          con="/Users/suika-san/Dropbox/miR-210_project/R_projects/GSE38865/test.bw", 
-#          format = "bw")
-
-#plotting this
-
-#testing bw
-#importing bw just created above
-#test_dir <- "/Users/suika-san/Dropbox/miR-210_project/R_projects/GSE38865/test.bw"
-#test_bw <- BigWigFile(test_dir)
-
-#### END OF TEST ####
-
+#inverting axis
+MEIS1_chip <- as.matrix(MEIS1_chip)
+#standardizing each row of chip_array
+for (i in seq_along(nrow)){
+  MEIS1_chip[i,] <- scale(MEIS1_chip[i,])
+}
+MEIS1_chip <- as.data.frame(MEIS1_chip)
+MEIS1_chip <- cbind(tmp, MEIS1_chip)
 
 #This actually works
 #Next need to write a function to convert txt files to bigwig
@@ -99,7 +80,6 @@ create_txt_ready_for_bed <- function(GSM){
     chrom = as.vector(MEIS1$CHROMOSOME), 
     chromStart = as.numeric(MEIS1$RANGE_START), 
     chromEnd = as.numeric(MEIS1$RANGE_END),
-    name = MEIS1$GENE_SYMBOL,
     score = as.numeric(MEIS1_chip[[GSM]])
   )
   
@@ -107,41 +87,34 @@ create_txt_ready_for_bed <- function(GSM){
   
 }
 
+#setting work directory
+wdir <- getwd()
+
+#loading 
+
 #in this function name is the name of file, and name_character is the name as character
-load_bigwig_from_txt <- function(name, name_character){
+load_bedgraph <- function(name, name_character){
   
   #export as bed
   write.table(name, 
-              paste(name_character, ".bed", sep = ""), 
+              paste(name_character, ".bedGraph", sep = ""), 
               sep = "\t", 
               row.names = FALSE, 
               col.names = FALSE, 
               quote = FALSE)
   
-  #import as bed
-  bed_load <- import(con = paste("/Users/suika-san/Dropbox/miR-210_project/R_projects/GSE38865/",name_character,".bed", 
-                                 sep = ""),  
-                       format = "bed", 
-                       genome = "hg18", 
-                       sep = c("\t"))
-  
-  #export as bw
-  export.bw(object=bed_load, 
-            con= paste("/Users/suika-san/Dropbox/miR-210_project/R_projects/GSE38865/",name_character,".bw", 
-                       sep = ""), 
-            format = "bw")
-  
-  #loading bigwig file
-  dir_foo <- paste("/Users/suika-san/Dropbox/miR-210_project/R_projects/GSE38865/",name_character,".bw", 
-                   sep = "")
-  BigWigFile(dir_foo)
-  
+  #importing as a dataranges object
+  import.bedGraph(
+         con = paste(wdir, "/", name_character, ".bedGraph", sep = ""), 
+         format = "bedGraph", 
+         genome = "hg18", 
+         sep = c("\t"))
 }
 
 #from this creating a function to load as many samples as you want
 #this function names a list, names, of GSM names for the patient samples which can be retrieved from MEIS1_chip
 #name_quoted is a list of names you wish to rename GSM samples, must be list of characters
-bigwig_from_txt <- function(GSM, names){
+bedgraph_from_txt <- function(GSM, names){
   
   list_of_patient_chip <- lapply(GSM, create_txt_ready_for_bed)
   names(list_of_patient_chip) <- names
@@ -149,12 +122,11 @@ bigwig_from_txt <- function(GSM, names){
   empty_list <- list()
   
   for(i in seq_along(names)){
-    empty_list[[i]] <- load_bigwig_from_txt(list_of_patient_chip[[i]], names[[i]])
+    empty_list[[i]] <- load_bedgraph(list_of_patient_chip[[i]], names[[i]])
   }
   
   names(empty_list) <- names
 
-  
   return(empty_list)
 }
 
@@ -165,8 +137,8 @@ sample_names <- gsub(" ", "_", patient_info$title)
 patient_names <- sample_names[1:26]
 patient_names <- as.list(patient_names)
 
-AML_chip <- bigwig_from_txt(GSM_names, patient_names)
-list2env(AML_chip, .GlobalEnv)
+histone_bed <- bedgraph_from_txt(GSM_names, patient_names)
+list2env(histone_bed, .GlobalEnv)
 
 #Now stating for CD34+ control
 GSM_cd34_names <- as.list(names(MEIS1_chip[, 28:37]))
@@ -176,11 +148,16 @@ sample_cd34_names <- as.list(sample_cd34_names)
 cd34_chip <- bigwig_from_txt(GSM_cd34_names, sample_cd34_names)
 list2env(cd34_chip, .GlobalEnv)
 
+#determining max and min score for each patient
+for(i in seq_along(histone_bed)){
+  print(c(max(score(histone_bed[[i]])), min(score(histone_bed[[i]]))))
+}
+
 #### Plotting karyotype ####
 
 #Plotting Normal Karyotype patients first
 #setting E2 region 
-MEIS1_E2_region <- toGRanges("chr2:66544400 -66549000", genome = "hg18")
+MEIS1_E2_region <- toGRanges("chr2:66544400-66549000", genome = "hg18")
 #Whole MEIS1 chr2:66480636-66780636
 
 #Old region: chr2:66528000-66532000
@@ -194,15 +171,6 @@ pp$ideogramheight <- 5
 pp$data1inmargin <- 10
 pp$max <- 10
 
-#This function serves as a preliminary troubleshooting tool
-plotbigwig <- function(chip_file, patient_name, ra, rb){
-  kp <- kpPlotBigWig(kp, data=chip_file, r0=ra, r1=rb, ymax = 1 , ymin = -1)
-  computed.ymax <- kp$latest.plot$computed.values$ymax
-  computed.ymin <- kp$latest.plot$computed.values$ymin
-  kpAxis(kp, ymin=computed.ymin, ymax=computed.ymax, r0=ra, r1=rb, cex = 0.5)
-  kpAddLabels(kp, labels = paste(patient_name), r0=ra, r1=rb, label.margin = 0.07, cex = 0.5)
-}
-
 #plotting bigwig file
 kp <- plotKaryotype(zoom = MEIS1_E2_region, plot.params = pp, genome = "hg18")
 genes_data <- makeGenesDataFromTxDb(TxDb.Hsapiens.UCSC.hg18.knownGene,
@@ -213,62 +181,64 @@ genes_data <- addGeneNames(genes_data)
 genes_data <- mergeTranscripts(genes_data)
 kpAddBaseNumbers(kp, tick.dist = 1000, minor.tick.dist = 200,
                  add.units = TRUE, digits = 6)
-kpPlotGenes(kp, data=genes_data, r0=0, r1=0.05, gene.name.cex = 0.5, 
+kpPlotGenes(kp, data=genes_data, r0=0, r1=0.1, gene.name.cex = 0.5, 
             avoid.overlapping = TRUE, cex = 0.5)
 
 #patient 1
-plotbigwig(Patient_1_H3K9ac, "patient 1", 0.1, 0.2)
+kpHeatmap(kp, data = Patient_1_H3K9ac, r0 = 0.1, r1 = 0.13, y = Patient_1_H3K9ac$score, colors = c("blue", "white", "red"))
 #patient 7
-plotbigwig(Patient_7_H3K9ac, "patient 7", 0.25, 0.35)
+kpHeatmap(kp, data = Patient_7_H3K9ac, r0 = 0.15, r1 = 0.18, y = Patient_7_H3K9ac$score, colors = c("blue", "white", "red"))
 #patient 10
-plotbigwig(Patient_10_H3K9ac, "patient 10", 0.4, 0.5)
+kpHeatmap(kp, data = Patient_10_H3K9ac, r0 = 0.2, r1 = 0.23, y = Patient_10_H3K9ac$score,colors = c("blue", "white", "red"))
 #patient 13
-plotbigwig(Patient_13_H3K9ac, "patient 13", 0.55, 0.65)
+kpHeatmap(kp, data = Patient_13_H3K9ac, r0 = 0.25, r1 = 0.28, y = Patient_13_H3K9ac$score,colors = c("blue", "white", "red"))
 #patient 15
-plotbigwig(Patient_15_H3K9ac, "patient 15", 0.7, 0.8)
+kpHeatmap(kp, data = Patient_15_H3K9ac, r0 = 0.3, r1 = 0.33, y = Patient_15_H3K9ac$score,colors = c("blue", "white", "red"))
 #patient 18
-plotbigwig(Patient_17_H3K9ac, "patient 17", 0.85, 0.95)
-
-#NK continued
-kp <- plotKaryotype(zoom = MEIS1_E2_region, plot.params = pp, genome = "hg18")
-kpAddBaseNumbers(kp, tick.dist = 1000, minor.tick.dist = 200,
-                 add.units = TRUE, digits = 6)
-kpPlotGenes(kp, data=genes_data, r0=0, r1=0.05, gene.name.cex = 0.5, 
-            avoid.overlapping = TRUE, cex = 0.5)
-
-#patient 18
-plotbigwig(Patient_18_H3K9ac, "patient 18", 0.1, 0.2)
+kpHeatmap(kp, data = Patient_18_H3K9ac, r0 = 0.35, r1 = 0.38, y = Patient_18_H3K9ac$score,colors = c("blue", "white", "red"))
 #patient 22
-plotbigwig(Patient_22_H3K9ac, "patient 22", 0.25, 0.35)
+kpHeatmap(kp, data = Patient_22_H3K9ac, r0 = 0.4, r1 = 0.43, y = Patient_22_H3K9ac$score,colors = c("blue", "white", "red"))
 #patient 23
-plotbigwig(Patient_13_H3K9ac, "patient 23", 0.4, 0.5)
+kpHeatmap(kp, data = Patient_23_H3K9ac, r0 = 0.45, r1 = 0.48, y = Patient_23_H3K9ac$score,colors = c("blue", "white", "red"))
 #patient 25
-plotbigwig(Patient_25_H3K9ac, "patient 25", 0.55, 0.65)
+kpHeatmap(kp, data = Patient_25_H3K9ac, r0 = 0.5, r1 = 0.53, y = Patient_25_H3K9ac$score,colors = c("blue", "white", "red"))
 #patient 26
-plotbigwig(Patient_26_H3K9ac, "patient 26", 0.7, 0.8)
+kpHeatmap(kp, data = Patient_10_H3K9ac, r0 = 0.55, r1 = 0.58, y = Patient_26_H3K9ac$score,colors = c("blue", "white", "red"))
+#adding label
+#kpAddLabels(kp, 
+##            labels = "Normal Karyotype", 
+#            side = "left",
+#            srt = 90)
 
-
+#kpAddLabels(kp, 
+#            labels = "Translocations", 
+#            srt = 90, 
+#            pos = 4)
 
 #Non-normal karyotype
-#plotting bigwig file
-kp <- plotKaryotype(zoom = MEIS1_E2_region, plot.params = pp, genome = "hg18")
-kpAddBaseNumbers(kp, tick.dist = 1000, minor.tick.dist = 200,
-                 add.units = TRUE, digits = 6)
-kpPlotGenes(kp, data=genes_data, r0=0, r1=0.05, gene.name.cex = 0.5, 
-            avoid.overlapping = TRUE, cex = 0.5)
-
 #patient 2
-plotbigwig(Patient_2_H3K9ac, "patient 2", 0.1, 0.2)
+kpHeatmap(kp, data = Patient_2_H3K9ac, r0 = 0.7, r1 = 0.73, y = Patient_2_H3K9ac$score,colors = c("blue", "white", "red"))
 #patient 3
-plotbigwig(Patient_3_H3K9ac, "patient 3", 0.25, 0.35)
+kpHeatmap(kp, data = Patient_3_H3K9ac, r0 = 0.75, r1 = 0.78, y = Patient_3_H3K9ac$score,colors = c("blue", "white", "red"))
 #patient 5
-plotbigwig(Patient_5_H3K9ac, "patient 5", 0.4, 0.5)
+kpHeatmap(kp, data = Patient_5_H3K9ac, r0 = 0.8, r1 = 0.83, y = Patient_5_H3K9ac$score,colors = c("blue", "white", "red"))
 #patient 6
-plotbigwig(Patient_6_H3K9ac, "patient 6", 0.55, 0.65)
+kpHeatmap(kp, data = Patient_6_H3K9ac, r0 = 0.85, r1 = 0.88, y = Patient_6_H3K9ac$score,colors = c("blue", "white", "red"))
 #patient 16
-plotbigwig(Patient_16_H3K9ac, "patient 16", 0.7, 0.8)
+kpHeatmap(kp, data = Patient_16_H3K9ac, r0 = 0.9, r1 = 0.93, y = Patient_16_H3K9ac$score,colors = c("blue", "white", "red"))
 #patient 19
-plotbigwig(Patient_19_H3K9ac, "patient 19", 0.85, 0.95)
+kpHeatmap(kp, data = Patient_19_H3K9ac, r0 = 0.95, r1 = 0.98, y = Patient_19_H3K9ac$score,colors = c("blue", "white", "red"))
+
+#Now want to compare H3K9ac to MEIS1 expression
+#### Loading RNA microarray data ####
+#loading rna microarray to determine correlation of ets factors and meis1 h3k9ac
+microarray_dataset <- stemcell$`GSE38865-GPL6884_series_matrix.txt.gz`
+rna_microarray <- microarray_dataset@assayData[["exprs"]]
+
+#loading annotation table taken from:
+#https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GPL6884
+#I trimmed off the extrenuous rows on top and saved as rna_microarray_annotation.csv in repo
+
 
 #### CD34+ donors ####
 #Starting with H3K9ac
