@@ -73,7 +73,6 @@ for (i in seq_along(nrow)){
 MEIS1_chip <- as.data.frame(MEIS1_chip)
 MEIS1_chip <- cbind(tmp, MEIS1_chip)
 
-#This actually works
 #Next need to write a function to convert txt files to bigwig
 #For MEIS1 data
 
@@ -148,7 +147,7 @@ GSM_cd34_names <- as.list(names(MEIS1_chip[, 28:37]))
 sample_cd34_names <- sample_names[27:36]
 sample_cd34_names <- as.list(sample_cd34_names)
 
-cd34_chip <- bigwig_from_txt(GSM_cd34_names, sample_cd34_names)
+cd34_chip <- bedgraph_from_txt(GSM_cd34_names, sample_cd34_names)
 list2env(cd34_chip, .GlobalEnv)
 
 #determining max and min score for each patient
@@ -188,25 +187,25 @@ kpPlotGenes(kp, data=genes_data, r0=0, r1=0.1, gene.name.cex = 0.5,
             avoid.overlapping = TRUE, cex = 0.5)
 
 #patient 1
-kpHeatmap(kp, data = Patient_1_H3K9ac, r0 = 0.1, r1 = 0.13, y = Patient_1_H3K9ac$score, colors = c("blue", "white", "red"))
+kpHeatmap(kp, data = Patient_1, r0 = 0.1, r1 = 0.13, y = Patient_1$score, colors = c("blue", "white", "red"))
 #patient 7
-kpHeatmap(kp, data = Patient_7_H3K9ac, r0 = 0.15, r1 = 0.18, y = Patient_7_H3K9ac$score, colors = c("blue", "white", "red"))
+kpHeatmap(kp, data = Patient_7, r0 = 0.15, r1 = 0.18, y = Patient_7$score, colors = c("blue", "white", "red"))
 #patient 10
-kpHeatmap(kp, data = Patient_10_H3K9ac, r0 = 0.2, r1 = 0.23, y = Patient_10_H3K9ac$score,colors = c("blue", "white", "red"))
+kpHeatmap(kp, data = Patient_10, r0 = 0.2, r1 = 0.23, y = Patient_10$score,colors = c("blue", "white", "red"))
 #patient 13
-kpHeatmap(kp, data = Patient_13_H3K9ac, r0 = 0.25, r1 = 0.28, y = Patient_13_H3K9ac$score,colors = c("blue", "white", "red"))
+kpHeatmap(kp, data = Patient_13, r0 = 0.25, r1 = 0.28, y = Patient_13$score,colors = c("blue", "white", "red"))
 #patient 15
-kpHeatmap(kp, data = Patient_15_H3K9ac, r0 = 0.3, r1 = 0.33, y = Patient_15_H3K9ac$score,colors = c("blue", "white", "red"))
+kpHeatmap(kp, data = Patient_15, r0 = 0.3, r1 = 0.33, y = Patient_15$score,colors = c("blue", "white", "red"))
 #patient 18
-kpHeatmap(kp, data = Patient_18_H3K9ac, r0 = 0.35, r1 = 0.38, y = Patient_18_H3K9ac$score,colors = c("blue", "white", "red"))
+kpHeatmap(kp, data = Patient_18, r0 = 0.35, r1 = 0.38, y = Patient_18$score,colors = c("blue", "white", "red"))
 #patient 22
-kpHeatmap(kp, data = Patient_22_H3K9ac, r0 = 0.4, r1 = 0.43, y = Patient_22_H3K9ac$score,colors = c("blue", "white", "red"))
+kpHeatmap(kp, data = Patient_22, r0 = 0.4, r1 = 0.43, y = Patient_22$score,colors = c("blue", "white", "red"))
 #patient 23
-kpHeatmap(kp, data = Patient_23_H3K9ac, r0 = 0.45, r1 = 0.48, y = Patient_23_H3K9ac$score,colors = c("blue", "white", "red"))
+kpHeatmap(kp, data = Patient_23, r0 = 0.45, r1 = 0.48, y = Patient_23$score,colors = c("blue", "white", "red"))
 #patient 25
-kpHeatmap(kp, data = Patient_25_H3K9ac, r0 = 0.5, r1 = 0.53, y = Patient_25_H3K9ac$score,colors = c("blue", "white", "red"))
+kpHeatmap(kp, data = Patient_25, r0 = 0.5, r1 = 0.53, y = Patient_25$score,colors = c("blue", "white", "red"))
 #patient 26
-kpHeatmap(kp, data = Patient_10_H3K9ac, r0 = 0.55, r1 = 0.58, y = Patient_26_H3K9ac$score,colors = c("blue", "white", "red"))
+kpHeatmap(kp, data = Patient_26, r0 = 0.55, r1 = 0.58, y = Patient_26$score,colors = c("blue", "white", "red"))
 #adding label
 #kpAddLabels(kp, 
 ##            labels = "Normal Karyotype", 
@@ -220,17 +219,17 @@ kpHeatmap(kp, data = Patient_10_H3K9ac, r0 = 0.55, r1 = 0.58, y = Patient_26_H3K
 
 #Non-normal karyotype
 #patient 2
-kpHeatmap(kp, data = Patient_2_H3K9ac, r0 = 0.7, r1 = 0.73, y = Patient_2_H3K9ac$score,colors = c("blue", "white", "red"))
+kpHeatmap(kp, data = Patient_2, r0 = 0.7, r1 = 0.73, y = Patient_2$score,colors = c("blue", "white", "red"))
 #patient 3
-kpHeatmap(kp, data = Patient_3_H3K9ac, r0 = 0.75, r1 = 0.78, y = Patient_3_H3K9ac$score,colors = c("blue", "white", "red"))
+kpHeatmap(kp, data = Patient_3, r0 = 0.75, r1 = 0.78, y = Patient_3$score,colors = c("blue", "white", "red"))
 #patient 5
-kpHeatmap(kp, data = Patient_5_H3K9ac, r0 = 0.8, r1 = 0.83, y = Patient_5_H3K9ac$score,colors = c("blue", "white", "red"))
+kpHeatmap(kp, data = Patient_5, r0 = 0.8, r1 = 0.83, y = Patient_5$score,colors = c("blue", "white", "red"))
 #patient 6
-kpHeatmap(kp, data = Patient_6_H3K9ac, r0 = 0.85, r1 = 0.88, y = Patient_6_H3K9ac$score,colors = c("blue", "white", "red"))
+kpHeatmap(kp, data = Patient_6, r0 = 0.85, r1 = 0.88, y = Patient_6$score,colors = c("blue", "white", "red"))
 #patient 16
-kpHeatmap(kp, data = Patient_16_H3K9ac, r0 = 0.9, r1 = 0.93, y = Patient_16_H3K9ac$score,colors = c("blue", "white", "red"))
+kpHeatmap(kp, data = Patient_16, r0 = 0.9, r1 = 0.93, y = Patient_16$score,colors = c("blue", "white", "red"))
 #patient 19
-kpHeatmap(kp, data = Patient_19_H3K9ac, r0 = 0.95, r1 = 0.98, y = Patient_19_H3K9ac$score,colors = c("blue", "white", "red"))
+kpHeatmap(kp, data = Patient_19, r0 = 0.95, r1 = 0.98, y = Patient_19$score,colors = c("blue", "white", "red"))
 
 #Now want to compare H3K9ac to MEIS1 expression
 #### Loading RNA microarray data ####
