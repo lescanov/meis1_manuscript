@@ -258,13 +258,13 @@ temp_var <- patient_info %>%
   dplyr::filter(title %in% patient_ids$title) %>%
   dplyr::arrange(match(title, patient_ids$title)) %>%
   rownames_to_column(var = "sample_id") %>%
-  dplyr::select(sample_id)
+  dplyr::select(sample_id,  characteristics_ch1.5, characteristics_ch2.8, characteristics_ch2.9)
 
 #combining both to make dictionary
 patient_ids <- cbind(patient_ids, temp_var)
 
 #changing colnames
-colnames(patient_ids) <- c("patient", "rna", "chip")
+colnames(patient_ids) <- c("patient", "rna", "chip", "karyotype", "npm1", "flt3")
 
 #standardizing input of microarray
 for(i in seq(nrow(rna_microarray))){
@@ -281,6 +281,7 @@ rna_microarray <- rownames_to_column(rna_microarray, var = "ID")
 rna_microarray_annotation <- read.csv("rna_microarray_annotation.csv", header = TRUE)
 
 #creating a list of ETS factors 
+#will focus on FLI1 for now
 ets <- c("CREB1", "ELF1",  "ELF2",  "ELF3",  "ELF4",  "ELK1",  "ELK3",  "ELK4",  "ERG",   "ETS1",  "ETS2", 
          "ETV3",  "ETV5",  "ETV6",  "FLI1",  "GABPA", "MYB",   "SP3",   "SPI1",  "YY1",   "YY2" )
 
@@ -315,26 +316,47 @@ mean_signal_intensity <- sapply(patient_e2_chip, FUN = mean)
 
 #correlating with FLI1
 #have to find what sample ids correspond to which patient
-
+#identifying samples that are present in both rna and chip microarrays
 rna_and_chip <- intersect(colnames(ets_microarray), patient_ids)
 
+#extracting fli1 from rna microarray
 fli1 <- ets_microarray %>%
   dplyr::filter(symbol %in% "FLI1") %>%
   dplyr::select(patient_ids$rna)
-
 fli1 <- as.numeric(fli1)
 
-combined_df <- data.frame(
+#
+rna_chip_fli1 <- data.frame(
   chip = mean_signal_intensity,
   rna = fli1
 )
 
+#plotting boxplot for removing outliers
+ggplot(rna_chip_fli1, aes(x = rna)) +
+  geom_boxplot()
+
+#identifying the presence of outliers
+#creating a function to plot cooks distance
+plot_cooks_distance <- function(cooks_distance){
+  plot(cooks_distance, pch="*", cex=2, main="Influential Obs by Cooks distance")  # plot cook's distance
+  abline(h = 4*mean(cooks_distance, na.rm=T), col="red")  # add cutoff line
+  text(x=1:length(cooks_distance)+1, y=cooks_distance, labels=ifelse(cooks_distance>4*mean(cooks_distance, na.rm=T),names(cooks_distance),""), col="red")  # add labels
+}
+
+#fitting lm to plot cook's distance of rna and chip microarray
+#this identifies GSM950962 as outlier
+chip_rna_lm <- lm(chip ~ rna, data = rna_chip_fli1)
+cookd_chip_rna <- cooks.distance(chip_rna_lm)
+plot_cooks_distance(cookd_chip_rna)
+
+#removing outlier
+rna_chip_fli1 <- rna_chip_fli1[rownames(rna_chip_fli1) != "GSM950962",]
+
 #plotting correlation
-#looks like there is an outlier here where chip  = 1.5
 #chip sample is GSM950962
 library(ggpubr)
 ggscatter(
-  combined_df, 
+  rna_chip_fli1, 
   x = "chip", 
   y = "rna", 
   cor.method = "spearman", 
@@ -346,8 +368,6 @@ ggscatter(
 )
 
 #removing outlier
-combined_df_no_outlier <- combined_df[rownames(combined_df)!="GSM950962",]
-
 ggscatter(
   combined_df_no_outlier, 
   x = "chip", 
