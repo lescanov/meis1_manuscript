@@ -206,16 +206,6 @@ kpHeatmap(kp, data = Patient_23, r0 = 0.45, r1 = 0.48, y = Patient_23$score,colo
 kpHeatmap(kp, data = Patient_25, r0 = 0.5, r1 = 0.53, y = Patient_25$score,colors = c("blue", "white", "red"))
 #patient 26
 kpHeatmap(kp, data = Patient_26, r0 = 0.55, r1 = 0.58, y = Patient_26$score,colors = c("blue", "white", "red"))
-#adding label
-#kpAddLabels(kp, 
-##            labels = "Normal Karyotype", 
-#            side = "left",
-#            srt = 90)
-
-#kpAddLabels(kp, 
-#            labels = "Translocations", 
-#            srt = 90, 
-#            pos = 4)
 
 #Non-normal karyotype
 #patient 2
@@ -266,6 +256,14 @@ patient_ids <- cbind(patient_ids, temp_var)
 #changing colnames
 colnames(patient_ids) <- c("patient", "rna", "chip", "karyotype", "npm1", "flt3")
 
+#plotting distribution of karyotypes
+patient_ids %>%
+  dplyr::group_by(karyotype) %>%
+  #summarise(n=n()) %>%
+  ggplot(aes(x = karyotype)) +
+  geom_bar(stat = "count", position = "identity") +
+  coord_flip()
+
 #standardizing input of microarray
 for(i in seq(nrow(rna_microarray))){
   rna_microarray[i,] <- scale(rna_microarray[i,])
@@ -308,6 +306,7 @@ ch2_e2_chip <- MEIS1_chip %>%
 #first convert list GSM_names to string
 chip_sample_ids <- unlist(GSM_names)
 
+#selecting patients that have chip-seq data
 patient_e2_chip <- ch2_e2_chip %>%
   dplyr::select(patient_ids$chip)
 
@@ -325,15 +324,12 @@ fli1 <- ets_microarray %>%
   dplyr::select(patient_ids$rna)
 fli1 <- as.numeric(fli1)
 
-#
+#creating a dataframe that contains rna and chip microarray data, for correlation
 rna_chip_fli1 <- data.frame(
   chip = mean_signal_intensity,
   rna = fli1
 )
 
-#plotting boxplot for removing outliers
-ggplot(rna_chip_fli1, aes(x = rna)) +
-  geom_boxplot()
 
 #identifying the presence of outliers
 #creating a function to plot cooks distance
@@ -367,15 +363,4 @@ ggscatter(
   ggtheme = theme_pubr()
 )
 
-#removing outlier
-ggscatter(
-  combined_df_no_outlier, 
-  x = "chip", 
-  y = "rna", 
-  cor.method = "spearman", 
-  alternative = "two.sided", 
-  conf.int = TRUE,
-  add = "reg.line", 
-  cor.coef = TRUE, 
-  ggtheme = theme_pubr()
-)
+
