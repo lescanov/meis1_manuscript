@@ -22,9 +22,7 @@ siteseq <- searchSeq(FLI1_pwm, E2.2, seqname = "E2.2")
 head(writeGFF3(siteseq))
 
 #I want to discover all transcription factors that can bind region
-#Could use the enrichment tool on the webiste here:
-#https://bitbucket.org/CBGR/jaspar_enrichment/src/master/
-#Or could just list all transcription factors in JASPAR
+#will create a list of human tfs outlined in jaspar
 opts <- list()
 opts[["species"]] <- 9606 #this is the taxonomy ID for humans
 human_tfs <- getMatrixSet(JASPAR2020, opts)
@@ -32,50 +30,9 @@ human_tfs <- getMatrixSet(JASPAR2020, opts)
 #converting human_tfs to pwm
 human_tfs_pwm <- toPWM(human_tfs)
 
-#Looking for binding to E2.2 region
-siteseq_human_tfs <- searchSeq(human_tfs_pwm, E2.2, seqname = "E2.2")
-head(writeGFF3(siteseq_human_tfs))
-result <- writeGFF3(siteseq_human_tfs)
-
-write.csv(result, "JASPAR2020_TF_binding_MEIS1_E2_2.csv")
-
-#This result shows that there is MEIS1
-
-#### Running analysis on the area around E2.2 gRNA ####
-
-E2.2_region_around <- DNAString("GTTGGCGGCACGGTTTATTTTATTTTACCTGTTTTCCTCGGAGGGCGCGAAGACTGCCACCCGCGCGGGGACCTGGGATCGACGACTTTGATACTAGGCGGTATCCCGGAGGGCTAAGTCGGCGGAAATCCACTTGACCTTGTAGCGTTAGTCCTTTCTTTTCCTTTCCTTTCCTTTTTCTTTCTTCTCTCTTTCCTATT")
-
-#Running analysis with min score of 0
-minscorezero <- searchSeq(human_tfs_pwm, E2.2, seqname = "E2.2", min.score = 0.8)
-min_result <- writeGFF3(minscorezero)
-
-region_around_E2_score <- searchSeq(human_tfs_pwm, E2.2_region_around, seqname = "E2.2_around", min.score = 0.8)
-proximity_result <- writeGFF3(region_around_E2_score)
-proximity_result <- proximity_result %>%
-  mutate(
-    gene_symbol = proximity_result[["attributes"]]
-  )
-proximity_result$gene_symbol <- gsub(";.*", "", proximity_result$gene_symbol)
-proximity_result$gene_symbol <- gsub("TF=", "", proximity_result$gene_symbol)
-
-write.csv(proximity_result, "100bp_upstream_downstream_E2gRNA.csv")
-
-#Running analysis on +/- 5bp E2.2 gRNA region
+#running tf binding analysis on e2.2 grna sequence, on +/- 5bp of locus
+#writing a function that will write a csv for numerous scores going down by intervals of .1
 FiveUpDownstream <- DNAString("CTTTGATACTAGGCGGTATCCCGGAGGGCT")
-score_five <- searchSeq(human_tfs_pwm, FiveUpDownstream, seqname = "E2.2", min.score = 0.75)
-result_five <- writeGFF3(score_five)
-
-result_five <- result_five %>%
-  mutate(
-    gene_symbol =  result_five$attributes
-  )
-result_five$gene_symbol <- gsub(";.*", "", result_five$gene_symbol)
-result_five$gene_symbol <- gsub("TF=", "", result_five$gene_symbol)
-
-write.csv(result_five, "JASPAR_E2_5bp_updownstream.csv")
-
-#### Writing a function that will write a csv for numerous score going down by intervals of .1
-
 score_sequence <- seq(from = 0.8, to = 0, by = -0.1)
 
 for (i in seq_along(score_sequence)){
