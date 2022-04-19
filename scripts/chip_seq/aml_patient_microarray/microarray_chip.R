@@ -1,4 +1,14 @@
-#Purpose of this is to convert txt files into bed format and then convert to bedgraph and then bigwig
+#purpose of this script is to visualize h3k9ac across the e2 enhances region of MEIS1
+#then relate the expression of FLI1 to said acetylation.
+#will compare MEIS1-high subtype of Normal Karyotype AMLs against other subtypes
+
+#the overall workflow plan for this script is as follows:
+# >1. extract patient data from geodataset to determine patient subgroups
+# >2. extract microarray data from geodataset, which comes in form of .txt files
+# >3. convert .txt files into bedgraph files
+# >4. visualize bedgraph files as heatmap on karyoploteR
+# >5. correlate FLI1 expression with H3K9ac of E2 enhancer region in AML patients
+
 library(GEOquery)
 library(tidyverse)
 library(rtracklayer)
@@ -7,7 +17,7 @@ library(TxDb.Hsapiens.UCSC.hg18.knownGene)
 library(karyoploteR)
 library(org.Hs.eg.db)
 
-
+#### DOWNLOADING GEODATASET FOR H3K9ac IN AML PATIENTS AND PATEITN CHARACTERISTICS ####
 #Importing data from 
 stemcell <- getGEO("GSE38865",
                    destdir = "/Users/suika-san/Dropbox/miR-210_project/R_projects/GSE38865", 
@@ -20,10 +30,7 @@ stemcell <- getGEO("GSE38865",
 #I have manually edited the txt files to contain expression values segregated by asscension code
 #this is saved as chiparray.txt (as seen in repo)
 
-#Default of getGEO is to save as a gse matrix
-#to extract elements of matrix such as patient data, experiment set up, values, must use Biobase
-
-#This is for ChIP array
+#extracting patient data from geo dataset using pData
 histone <- stemcell$`GSE38865-GPL15724_series_matrix.txt.gz`
 patient_info <- pData(phenoData(histone))
 
@@ -32,30 +39,31 @@ patient_info <- pData(phenoData(histone))
 patient_info <- patient_info %>%
   dplyr::select(title, characteristics_ch1.5, characteristics_ch2.8, characteristics_ch2.9)
 
-#cleaning title 
+#cleaning title column of patient_info
 patient_info$title <- gsub(" H3K9ac", "", patient_info$title)
 
-#importing chiparray.txt
+#### STANDARDIZING H3K9ac SIGNALS ACROSS PATIENTS ####
+#importing chiparray.txt (h3k9ac microarray data)
 chip_array <- read.delim("chiparray.txt", header = TRUE)
 
 #importing genome annotation for chip array which was received from here:
 #https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GPL15724
-#annotation ID are not in order
+#annotation ID are not in order, must be sorted.
 chip_annotation <- read.delim("chip_annotation.txt")
 chip_annotation <- chip_annotation %>%
   dplyr::arrange(CHROMOSOMAL_LOCATION)
 
-#checking if MEIS1 exists in this data
-#It does, in the annotation
+#extracting MEIS1 locus from chip_annotation
 MEIS1 <- chip_annotation %>%
   dplyr::filter(GENE_SYMBOL %in% "MEIS1")
 
-#Checking if MEIS1 exists in Chip
+#extracting MEIS1 locus from microarray data
 MEIS1_chip <- chip_array %>%
   dplyr::filter(ID_REF %in% MEIS1$ID)
 
 #standardizing score for MEIS1
-#temporary saving ascension ids as rownames
+#temporararily saving column (asscension values) to be combined later
+#matrix cannot contain rownames, iirc, so this is my solution
 tmp <- MEIS1_chip[1]
 
 #removing names so can standardize
@@ -64,20 +72,25 @@ MEIS1_chip <- MEIS1_chip[-1]
 #getting number of rows
 nrow <- seq(nrow(MEIS1_chip))
 
-#inverting axis
+#inverting axis so that signal intensities are on rows and patients as columns
 MEIS1_chip <- as.matrix(MEIS1_chip)
-#standardizing each row of chip_array
+
+#applying scale across each row of chip_array, standardizing h3k9ac signal intensity across samples
 for (i in seq_along(nrow)){
   MEIS1_chip[i,] <- scale(MEIS1_chip[i,])
 }
+
+#saving as dataframe and adding back asscension numbers
 MEIS1_chip <- as.data.frame(MEIS1_chip)
 MEIS1_chip <- cbind(tmp, MEIS1_chip)
 
-#Next need to write a function to convert txt files to bigwig
-#For MEIS1 data
+#### CONVERT TXT FILES INTO BEDGRAPH FILES FOR VISUALIZATION ####
+#writing functions to convert txt files to bedgraph
 
 create_txt_ready_for_bed <- function(GSM){
   
+  #this creates a dataframe that fits the bed format as specified by ucsc
+  #https://genome.ucsc.edu/FAQ/FAQformat.html#format1.7
   bed <- data.frame(
     chrom = as.vector(MEIS1$CHROMOSOME), 
     chromStart = as.numeric(MEIS1$RANGE_START), 
@@ -92,7 +105,8 @@ create_txt_ready_for_bed <- function(GSM){
 #setting work directory
 wdir <- getwd()
 
-#loading 
+#load_bedgraph function now creates a bedgraph from the output of create_txt_ready_for_bed, and
+#imports it as a granges object bedgraph
 
 #in this function name is the name of file, and name_character is the name as character
 load_bedgraph <- function(name, name_character){
@@ -115,7 +129,6 @@ load_bedgraph <- function(name, name_character){
 
 #from this creating a function to load as many samples as you want
 #this function names a list, names, of GSM names for the patient samples which can be retrieved from MEIS1_chip
-#name_quoted is a list of names you wish to rename GSM samples, must be list of characters
 bedgraph_from_txt <- function(GSM, names){
   
   list_of_patient_chip <- lapply(GSM, create_txt_ready_for_bed)
@@ -134,11 +147,12 @@ bedgraph_from_txt <- function(GSM, names){
 
 #apply function
 #stating variables for AML patients, next will have to be 
-GSM_names <- as.list(names(MEIS1_chip[, 2:27]))
-sample_names <- gsub(" ", "_", patient_info$title)
-patient_names <- sample_names[1:26]
-patient_names <- as.list(patient_names)
+GSM_names <- as.list(names(MEIS1_chip[, 2:27])) #GSM_names correspond to AML patient samples
+sample_names <- gsub(" ", "_", patient_info$title) #sample_names are names given to each element of list that correspond to a patient sample
+patient_names <- sample_names[1:26] #patient_names are strings for aml patients
+patient_names <- as.list(patient_names) #convert to list so that it may be used in bedgraph_from_txt function
 
+#lapply list of patient names to 
 histone_bed <- bedgraph_from_txt(GSM_names, patient_names)
 list2env(histone_bed, .GlobalEnv)
 
@@ -150,21 +164,16 @@ sample_cd34_names <- as.list(sample_cd34_names)
 cd34_chip <- bedgraph_from_txt(GSM_cd34_names, sample_cd34_names)
 list2env(cd34_chip, .GlobalEnv)
 
-#determining max and min score for each patient
+#determining max and min score for each patient to determine get a grasp on data distribution
 for(i in seq_along(histone_bed)){
   print(c(max(score(histone_bed[[i]])), min(score(histone_bed[[i]]))))
 }
 
-#### Plotting karyotype ####
-
-#Plotting Normal Karyotype patients first
+#### Plotting H3K9ac along E2 enhancer region ####
 #setting E2 region 
 MEIS1_E2_region <- toGRanges("chr2:66544400-66549000", genome = "hg18")
-#Whole MEIS1 chr2:66480636-66780636
 
-#Old region: chr2:66528000-66532000
-
-#setting plot parameters
+#setting plot parameters for karyoploteR
 pp <- getDefaultPlotParams(plot.type=1)
 pp$leftmargin <- 0.15
 pp$topmargin <- 15
@@ -250,7 +259,7 @@ temp_var <- patient_info %>%
   rownames_to_column(var = "sample_id") %>%
   dplyr::select(sample_id,  characteristics_ch1.5, characteristics_ch2.8, characteristics_ch2.9)
 
-#combining both to make dictionary
+#combining both to make dictionary of patients with sample ids for both chip and rna microarrays
 patient_ids <- cbind(patient_ids, temp_var)
 
 #changing colnames
@@ -259,10 +268,11 @@ colnames(patient_ids) <- c("patient", "rna", "chip", "karyotype", "npm1", "flt3"
 #plotting distribution of karyotypes
 patient_ids %>%
   dplyr::group_by(karyotype) %>%
-  #summarise(n=n()) %>%
   ggplot(aes(x = karyotype)) +
   geom_bar(stat = "count", position = "identity") +
-  coord_flip()
+  ggtitle("karyotype distribution of patients with RNA microarray data") +
+  theme(plot.title = element_text(hjust = 2)) +
+  coord_flip() 
 
 #standardizing input of microarray
 for(i in seq(nrow(rna_microarray))){
@@ -330,7 +340,6 @@ rna_chip_fli1 <- data.frame(
   rna = fli1
 )
 
-
 #identifying the presence of outliers
 #creating a function to plot cooks distance
 plot_cooks_distance <- function(cooks_distance){
@@ -357,10 +366,14 @@ ggscatter(
   y = "rna", 
   cor.method = "spearman", 
   alternative = "two.sided", 
+  xlab = "H3K9ac mean signal intensity", 
+  ylab = "FLI1 signal intensity",
   conf.int = TRUE,
   add = "reg.line", 
   cor.coef = TRUE, 
   ggtheme = theme_pubr()
 )
+
+
 
 
