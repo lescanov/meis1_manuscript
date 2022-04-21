@@ -186,7 +186,8 @@ for(i in seq_along(histone_bed)){
 
 #### Plotting H3K9ac along E2 enhancer region ####
 #setting E2 region 
-MEIS1_E2_region <- toGRanges("chr2:66544400-66549000", genome = "hg18")
+#old region is 
+MEIS1_E2_region <- toGRanges("chr2:66525936-66527140", genome = "hg18")
 
 #setting plot parameters for karyoploteR
 pp <- getDefaultPlotParams(plot.type=1)
@@ -366,9 +367,10 @@ ets_microarray <- rna_microarray %>%
   mutate(symbol = ets_microarray_annotation$Symbol)
 
 #Now to correlate ets factor expression with h3k9ac expression
+#use this region "chr2:66525936-66527140" hg18
 #first must find the genomic region of chromosome: 66544400 - 66546800 of chr2
 chr2_e2 <- chip_annotation %>%
-  dplyr::filter(CHROMOSOME %in% "chr2", RANGE_START > 66544400 , RANGE_END < 66546800)
+  dplyr::filter(CHROMOSOME %in% "chr2", RANGE_START > 66525936, RANGE_END < 66527140)
 
 #fetching chip microarray data corresponding to this region
 ch2_e2_chip <- MEIS1_chip %>%
@@ -417,7 +419,15 @@ cookd_chip_rna <- cooks.distance(chip_rna_lm)
 plot_cooks_distance(cookd_chip_rna)
 
 #removing outlier
-rna_chip_fli1 <- rna_chip_fli1[rownames(rna_chip_fli1) != "GSM950962",]
+rna_chip_fli1 <- rna_chip_fli1[rownames(rna_chip_fli1) != "GSM950958",]
+rna_chip_fli1 <- rna_chip_fli1[rownames(rna_chip_fli1) != "GSM950964",]
+rna_chip_fli1 <- rna_chip_fli1[rownames(rna_chip_fli1) != "GSM950957",]
+
+#looking to plot relationship of only normal karyotype samples
+normal_karyotype <- c("GSM950948", "GSM950957", "GSM950962", "GSM950964", "GSM950965", "GSM950972")
+
+nk <- rna_chip_fli1 %>% rownames_to_column(var = "x")
+nk <- nk %>% dplyr::filter(x %in% normal_karyotype)
 
 #plotting correlation
 #chip sample is GSM950962
@@ -426,7 +436,7 @@ ggscatter(
   rna_chip_fli1, 
   x = "chip", 
   y = "rna", 
-  cor.method = "spearman", 
+  cor.method = "kendall", 
   alternative = "two.sided", 
   xlab = "H3K9ac mean signal intensity", 
   ylab = "FLI1 signal intensity",
@@ -436,7 +446,7 @@ ggscatter(
   ggtheme = theme_pubr()
 )
 
-#
+ls#
 df <- ch2_e2_chip
 df <- df[-1]
 
@@ -465,3 +475,4 @@ ggplot(to_plot, aes(x = group, y = mean_signal_intensity)) +
   stat_summary(fun.data = give.n, geom = "text") +
   ggtitle("mean signal intensity of MEIS1 E2 region") +
   theme_minimal() + theme(plot.title = element_text(hjust = 0.5))
+
