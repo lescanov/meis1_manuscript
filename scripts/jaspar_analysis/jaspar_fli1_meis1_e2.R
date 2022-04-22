@@ -6,21 +6,6 @@ library(TFBSTools)
 library(Biostrings)
 library(tidyverse)
 
-#Retriving TF binding matrix from JASPAR
-FLI1_pfm <- getMatrixByName(JASPAR2020, name = "FLI1")
-
-#Converting pfm to pwm
-FLI1_pwm <- toPWM(FLI1_pfm)
-
-#Plotting sequence logo
-seqLogo(toICM(FLI1_pfm))
-
-#Testing binding for FLI1 on MEIS1 E2.2 gRNA region
-E2.2 <- DNAString("ATACTAGGCGGTATCCCGGA")
-#                 CTTTGATACTAGGCGGTATCCCGGAGGGCT
-siteseq <- searchSeq(FLI1_pwm, E2.2, seqname = "E2.2")
-head(writeGFF3(siteseq))
-
 #I want to discover all transcription factors that can bind region
 #will create a list of human tfs outlined in jaspar
 opts <- list()
