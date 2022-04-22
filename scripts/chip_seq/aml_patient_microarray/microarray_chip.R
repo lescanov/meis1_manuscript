@@ -156,29 +156,6 @@ patient_names <- as.list(patient_names) #convert to list so that it may be used 
 histone_bed <- bedgraph_from_txt(GSM_names, patient_names)
 list2env(histone_bed, .GlobalEnv)
 
-#Now stating for CD34+ control
-GSM_cd34_names <- as.list(names(MEIS1_chip[, 28:37]))
-sample_cd34_names <- sample_names[27:36]
-sample_cd34_names <- as.list(sample_cd34_names)
-
-cd34_chip <- bedgraph_from_txt(GSM_cd34_names, sample_cd34_names)
-list2env(cd34_chip, .GlobalEnv)
-
-#defining neutrophil control
-GSM_neutrophil_names <- as.list(names(MEIS1_chip[, 38:48]))
-sample_neutrophil_names <- sample_names[37:47]
-sample_neutrophil_names <- as.list(sample_neutrophil_names)
-
-neutrophil_chip <- bedgraph_from_txt(GSM_neutrophil_names, sample_neutrophil_names)
-list2env(neutrophil_chip, .GlobalEnv)
-
-#defining t cell control
-GSM_tcell_names <- as.list(names(MEIS1_chip[, 49:57]))
-sample_tcell_names <- sample_names[48:56]
-sample_tcell_names <- as.list(sample_tcell_names)
-
-tcell_chip <- bedgraph_from_txt(GSM_tcell_names, sample_tcell_names)
-list2env(tcell_chip, .GlobalEnv)
 #determining max and min score for each patient to determine get a grasp on data distribution
 for(i in seq_along(histone_bed)){
   print(c(max(score(histone_bed[[i]])), min(score(histone_bed[[i]]))))
@@ -245,53 +222,6 @@ kpHeatmap(kp, data = Patient_6, r0 = 0.85, r1 = 0.88, y = Patient_6$score,colors
 kpHeatmap(kp, data = Patient_16, r0 = 0.9, r1 = 0.93, y = Patient_16$score,colors = c("blue", "white", "red"))
 #patient 19
 kpHeatmap(kp, data = Patient_19, r0 = 0.95, r1 = 0.98, y = Patient_19$score,colors = c("blue", "white", "red"))
-
-#can do this to compare normal karyotype to cd34+ healthy controls
-kp <- plotKaryotype(zoom = MEIS1_E2_region, plot.params = pp, genome = "hg18")
-genes_data <- makeGenesDataFromTxDb(TxDb.Hsapiens.UCSC.hg18.knownGene,
-                                    karyoplot=kp,
-                                    plot.transcripts = TRUE, 
-                                    plot.transcripts.structure = TRUE)
-genes_data <- addGeneNames(genes_data)
-genes_data <- mergeTranscripts(genes_data)
-kpAddBaseNumbers(kp, tick.dist = 1000, minor.tick.dist = 200,
-                 add.units = TRUE, digits = 6)
-kpPlotGenes(kp, data=genes_data, r0=0, r1=0.1, gene.name.cex = 0.5, 
-            avoid.overlapping = TRUE, cex = 0.5)
-
-#patient 1
-kpHeatmap(kp, data = Patient_1, r0 = 0.1, r1 = 0.13, y = Patient_1$score, colors = c("blue", "white", "red"))
-#patient 7
-kpHeatmap(kp, data = Patient_7, r0 = 0.15, r1 = 0.18, y = Patient_7$score, colors = c("blue", "white", "red"))
-#patient 10
-kpHeatmap(kp, data = Patient_10, r0 = 0.2, r1 = 0.23, y = Patient_10$score,colors = c("blue", "white", "red"))
-#patient 13
-kpHeatmap(kp, data = Patient_13, r0 = 0.25, r1 = 0.28, y = Patient_13$score,colors = c("blue", "white", "red"))
-#patient 15
-kpHeatmap(kp, data = Patient_15, r0 = 0.3, r1 = 0.33, y = Patient_15$score,colors = c("blue", "white", "red"))
-#patient 18
-kpHeatmap(kp, data = Patient_18, r0 = 0.35, r1 = 0.38, y = Patient_18$score,colors = c("blue", "white", "red"))
-#patient 22
-kpHeatmap(kp, data = Patient_22, r0 = 0.4, r1 = 0.43, y = Patient_22$score,colors = c("blue", "white", "red"))
-#patient 23
-kpHeatmap(kp, data = Patient_23, r0 = 0.45, r1 = 0.48, y = Patient_23$score,colors = c("blue", "white", "red"))
-#patient 25
-kpHeatmap(kp, data = Patient_25, r0 = 0.5, r1 = 0.53, y = Patient_25$score,colors = c("blue", "white", "red"))
-#patient 26
-kpHeatmap(kp, data = Patient_26, r0 = 0.55, r1 = 0.58, y = Patient_26$score,colors = c("blue", "white", "red"))
-
-#CD34+ normal control
-#normal donor 1
-kpHeatmap(kp, data = CD34_normal_control_1, r0 = 0.7, r1 = 0.73, y = CD34_normal_control_1$score,colors = c("blue", "white", "red"))
-#CD34_normal_control 3
-kpHeatmap(kp, data = CD34_normal_control_3, r0 = 0.75, r1 = 0.78, y = CD34_normal_control_3$score,colors = c("blue", "white", "red"))
-#CD34_normal_control 4
-kpHeatmap(kp, data = CD34_normal_control_4, r0 = 0.8, r1 = 0.83, y = CD34_normal_control_4$score,colors = c("blue", "white", "red"))
-#CD34_normal_control 5
-kpHeatmap(kp, data = CD34_normal_control_5, r0 = 0.85, r1 = 0.88, y = CD34_normal_control_5$score,colors = c("blue", "white", "red"))
-#CD34_normal_control 7
-kpHeatmap(kp, data = CD34_normal_control_7, r0 = 0.9, r1 = 0.93, y = CD34_normal_control_7$score,colors = c("blue", "white", "red"))
-
 
 #Now want to compare H3K9ac to MEIS1 expression
 #### Loading RNA microarray data ####
@@ -369,8 +299,10 @@ ets_microarray <- rna_microarray %>%
 #Now to correlate ets factor expression with h3k9ac expression
 #use this region "chr2:66525936-66527140" hg18
 #first must find the genomic region of chromosome: 66544400 - 66546800 of chr2
+chr_start <- 66544400
+chr_end <- 66546800 
 chr2_e2 <- chip_annotation %>%
-  dplyr::filter(CHROMOSOME %in% "chr2", RANGE_START > 66525936, RANGE_END < 66527140)
+  dplyr::filter(CHROMOSOME %in% "chr2", RANGE_START > chr_start, RANGE_END < chr_end)
 
 #fetching chip microarray data corresponding to this region
 ch2_e2_chip <- MEIS1_chip %>%
@@ -419,15 +351,7 @@ cookd_chip_rna <- cooks.distance(chip_rna_lm)
 plot_cooks_distance(cookd_chip_rna)
 
 #removing outlier
-rna_chip_fli1 <- rna_chip_fli1[rownames(rna_chip_fli1) != "GSM950958",]
-rna_chip_fli1 <- rna_chip_fli1[rownames(rna_chip_fli1) != "GSM950964",]
-rna_chip_fli1 <- rna_chip_fli1[rownames(rna_chip_fli1) != "GSM950957",]
-
-#looking to plot relationship of only normal karyotype samples
-normal_karyotype <- c("GSM950948", "GSM950957", "GSM950962", "GSM950964", "GSM950965", "GSM950972")
-
-nk <- rna_chip_fli1 %>% rownames_to_column(var = "x")
-nk <- nk %>% dplyr::filter(x %in% normal_karyotype)
+rna_chip_fli1 <- rna_chip_fli1[rownames(rna_chip_fli1) != "GSM950962",]
 
 #plotting correlation
 #chip sample is GSM950962
@@ -436,7 +360,7 @@ ggscatter(
   rna_chip_fli1, 
   x = "chip", 
   y = "rna", 
-  cor.method = "kendall", 
+  cor.method = "spearman", 
   alternative = "two.sided", 
   xlab = "H3K9ac mean signal intensity", 
   ylab = "FLI1 signal intensity",
@@ -446,33 +370,5 @@ ggscatter(
   ggtheme = theme_pubr()
 )
 
-ls#
-df <- ch2_e2_chip
-df <- df[-1]
 
-#creating df for plotting
-df <- df %>% dplyr::select(1, 7, 10, 13, 15, 18, 22, 23, 25, 26, 2, 3, 5, 6, 16, 19, 28, 30, 32, 34, 36, 38, 40, 42, 44, 46, 48, 50, 52, 54, 56)
-
-#creating group labels
-group_labels <- c(rep("Normal Karyotype", 10), rep("Non-Normal Karyotype", 6), rep("CD34+ normal", 5), rep("neutrophil normal", 5), rep("T cell normal", 5))
-
-#plotting h3k9ac levels across different tissue types
-#fist getting mean signal intensity for all samples
-mean_signal_intensity <- sapply(df, FUN = mean)
-
-#creating a dataframe for plotting
-to_plot <- data.frame(
-  group = group_labels, 
-  mean_signal_intensity = mean_signal_intensity
-)
-
-give.n <- function(x){
-  return(c(y = mean(x), label = length(x)))
-}
-
-ggplot(to_plot, aes(x = group, y = mean_signal_intensity)) +
-  geom_boxplot() +
-  stat_summary(fun.data = give.n, geom = "text") +
-  ggtitle("mean signal intensity of MEIS1 E2 region") +
-  theme_minimal() + theme(plot.title = element_text(hjust = 0.5))
 
